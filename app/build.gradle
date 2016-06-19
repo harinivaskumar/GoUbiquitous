@@ -33,6 +33,8 @@ dependencies {
     compile 'com.android.support:recyclerview-v7:23.3.0'
     compile 'com.google.android.apps.muzei:muzei-api:2.0'
     compile 'com.google.android.gms:play-services-gcm:8.4.0'
+
+    compile project(':sunshinelib')
 }
 
 apply plugin: 'com.google.gms.google-services'
