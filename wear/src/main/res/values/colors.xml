@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="accent_watch_face">#ffffff</color>
+    <color name="accent_watch_face_dark">#ffffff</color>
+    <color name="accent_watch_face_light">#B3E5FC</color>
     <color name="ambient_primary_dark">#000000</color>
 </resources>

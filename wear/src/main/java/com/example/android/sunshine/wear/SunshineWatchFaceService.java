@@ -29,6 +29,7 @@ import android.os.Bundle;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
 import android.text.format.Time;
+import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
@@ -42,6 +43,8 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
     private static final Typeface NORMAL_TYPEFACE =
             Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL);
 
+    private static final String LOG_TAG = SunshineWatchFaceService.class.getSimpleName();
+
     @Override
     public Engine onCreateEngine() {
         return new Engine();
@@ -53,15 +56,33 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
         Resources mResources = SunshineWatchFaceService.this.getResources();
         Time mTime;
         Paint mBackgroundPaint;
-        Paint mTextPaint;
+        Paint mTimeTextPaint;
+        Paint mDateTextPaint;
+        Paint mDividerTextPaint;
+        Paint mTempHighPaint;
+        Paint mTempLowPaint;
 
+        final int TEXT_SIZE_NOT_APPLICABLE = 0;
         final int PAINT_TYPE_TEXT = 1;
         final int PAINT_TYPE_BACKGROUND = 2;
         final String DIGITAL_TIME_FORMAT = "%d:%02d";
 
+        final String EXAMPLE_TIME_STRING = "12:00";
+        final String EXAMPLE_DATE_STRING = "WED, JUN 19, 2016";
+
         int mTapCount;
         float mTimeXOffset;
         float mTimeYOffset;
+        float mDateXOffset;
+        float mDateYOffset;
+        float mDividerXOffset;
+        float mDividerYOffset;
+        float mWeatherIconXOffset;
+        float mWeatherIconYOffset;
+        float mTempHighXOffset;
+        float mTempHighYOffset;
+        float mTempLowXOffset;
+        float mTempLowYOffset;
         /**
          * Whether the display supports fewer bits for each color in ambient mode. When true, we
          * disable anti-aliasing in ambient mode.
@@ -81,21 +102,10 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
         @Override
         public void onCreate(SurfaceHolder holder) {
             super.onCreate(holder);
-
             setWatchFaceStyle(getWatchFaceStyle());
-
+            initPaintObjects();
+            initXYOffsets();
             mTime = new Time();
-            mTimeYOffset = getDimensionFromRes(R.dimen.digital_y_offset);
-
-            mBackgroundPaint = getPaintObject(
-                    PAINT_TYPE_BACKGROUND,
-                    R.color.primary_dark
-            );
-
-            mTextPaint = getPaintObject(
-                    PAINT_TYPE_TEXT,
-                    R.color.accent_watch_face
-            );
         }
 
         @Override
@@ -121,20 +131,6 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
         @Override
         public void onApplyWindowInsets(WindowInsets insets) {
             super.onApplyWindowInsets(insets);
-
-            boolean isRound = insets.isRound();
-
-            mTimeXOffset = getDimensionFromRes(isRound ?
-                    R.dimen.digital_x_offset_round :
-                    R.dimen.digital_x_offset
-            );
-
-            mTextPaint.setTextSize(
-                    getDimensionFromRes(isRound ?
-                            R.dimen.digital_text_size_round :
-                            R.dimen.digital_text_size
-                    )
-            );
         }
 
         @Override
@@ -155,7 +151,7 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
             if (mAmbient != inAmbientMode) {
                 mAmbient = inAmbientMode;
                 if (mLowBitAmbient) {
-                    mTextPaint.setAntiAlias(!inAmbientMode);
+                    mTimeTextPaint.setAntiAlias(!inAmbientMode);
                 }
                 invalidate();
             }
@@ -190,17 +186,15 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
 
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
-            // Draw the background.
-            if (isInAmbientMode()) {
-                canvas.drawColor(getColorFromRes(R.color.ambient_primary_dark));
-            } else {
-                canvas.drawRect(0, 0, bounds.width(), bounds.height(), mBackgroundPaint);
-            }
-
-            // Draw H:MM in both ambient and interactive modes.
-            mTime.setToNow();
-            String timeFormat = String.format(DIGITAL_TIME_FORMAT, mTime.hour, mTime.minute);
-            canvas.drawText(timeFormat, mTimeXOffset, mTimeYOffset, mTextPaint);
+            Log.d(LOG_TAG, "Entering onDraw");
+            drawBackground(canvas, bounds);
+            drawTimeText(canvas, bounds);
+            drawDateText(canvas, bounds);
+            drawDivider(canvas, bounds);
+            drawIconBitmap(canvas, bounds);
+            drawHighTemperature(canvas, bounds);
+            drawLowTemperature(canvas, bounds);
+            Log.d(LOG_TAG, "Exiting onDraw!");
         }
 
         private WatchFaceStyle getWatchFaceStyle(){
@@ -230,11 +224,50 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
             SunshineWatchFaceService.this.unregisterReceiver(mTimeZoneReceiver);
         }
 
-        private Paint getPaintObject(int paintType, int textColorResId) {
+        private void initPaintObjects(){
+            Log.d(LOG_TAG, "Entering initPaintObjects!");
+            mBackgroundPaint    = getPaintObject(PAINT_TYPE_BACKGROUND, R.color.primary_dark, TEXT_SIZE_NOT_APPLICABLE);
+
+            mTimeTextPaint      = getPaintObject(PAINT_TYPE_TEXT, R.color.accent_watch_face_dark, R.dimen.time_text_size);
+            mDateTextPaint      = getPaintObject(PAINT_TYPE_TEXT, R.color.accent_watch_face_light, R.dimen.date_text_size);
+
+            mDividerTextPaint   = getPaintObject(PAINT_TYPE_TEXT, R.color.accent_watch_face_light, R.dimen.divider_line_size);
+
+            mTempHighPaint      = getPaintObject(PAINT_TYPE_TEXT, R.color.accent_watch_face_dark, R.dimen.temp_text_size);
+            mTempLowPaint       = getPaintObject(PAINT_TYPE_TEXT, R.color.accent_watch_face_light, R.dimen.temp_text_size);
+            Log.d(LOG_TAG, "Exiting initPaintObjects!");
+        }
+
+        private void initXYOffsets(){
+            Log.d(LOG_TAG, "Entering initXYOffsets!");
+            //mTimeXOffset = getDimensionFromRes(R.dimen.time_y_offset);
+            mTimeXOffset = mTimeTextPaint.measureText(EXAMPLE_TIME_STRING) / 2;
+            mTimeYOffset = getDimensionFromRes(R.dimen.time_y_offset);
+
+            //mDateXOffset = getDimensionFromRes(R.dimen.date_y_offset);
+            mDateXOffset = mDateTextPaint.measureText(EXAMPLE_DATE_STRING) / 2;
+            mDateYOffset = getDimensionFromRes(R.dimen.date_y_offset);
+
+            mDividerXOffset = getDimensionFromRes(R.dimen.divider_x_offset);
+            mDividerYOffset = getDimensionFromRes(R.dimen.divider_y_offset);
+
+            mWeatherIconXOffset = getDimensionFromRes(R.dimen.weather_icon_y_offset);
+            mWeatherIconYOffset = getDimensionFromRes(R.dimen.weather_icon_y_offset);
+
+            mTempHighXOffset = getDimensionFromRes(R.dimen.temp_high_x_offset);
+            mTempHighYOffset = getDimensionFromRes(R.dimen.temp_high_y_offset);
+
+            mTempLowXOffset = getDimensionFromRes(R.dimen.temp_low_x_offset);
+            mTempLowYOffset = getDimensionFromRes(R.dimen.temp_low_y_offset);
+            Log.d(LOG_TAG, "Exiting initXYOffsets!");
+        }
+
+        private Paint getPaintObject(int paintType, int textColorResId, int textSizeResId) {
             Paint paint = new Paint();
 
             switch (paintType){
                 case PAINT_TYPE_TEXT:
+                    paint.setTextSize(getDimensionFromRes(textSizeResId));
                     paint.setTypeface(NORMAL_TYPEFACE);
                     paint.setAntiAlias(true);
                     break;
@@ -253,5 +286,68 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
         private int getColorFromRes(int colorResId){
             return mResources.getColor(colorResId);
         }
+
+        private void drawBackground(Canvas canvas, Rect bounds){
+            Log.d(LOG_TAG, "Entering drawBackground!");
+            // Draw the background.
+            if (isInAmbientMode()) {
+                canvas.drawColor(getColorFromRes(R.color.ambient_primary_dark));
+            } else {
+                canvas.drawRect(0, 0, bounds.width(), bounds.height(), mBackgroundPaint);
+            }
+            Log.d(LOG_TAG, "Exiting drawBackground!");
+        }
+
+        private void drawTimeText(Canvas canvas, Rect bounds){
+            Log.d(LOG_TAG, "Entering drawTimeText!");
+            // Draw H:MM in both ambient and interactive modes.
+            mTime.setToNow();
+            String timeFormat = String.format(DIGITAL_TIME_FORMAT, mTime.hour, mTime.minute);
+            canvas.drawText(timeFormat, bounds.centerX() - mTimeXOffset, mTimeYOffset, mTimeTextPaint);
+            Log.d(LOG_TAG, "Exiting drawTimeText!");
+        }
+
+        private void drawDateText(Canvas canvas, Rect bounds){
+            Log.d(LOG_TAG, "Entering drawTimeText!");
+            // Draw H:MM in both ambient and interactive modes.
+            mTime.setToNow();
+            String timeFormat = String.format(DIGITAL_TIME_FORMAT, mTime.hour, mTime.minute);
+            canvas.drawText(timeFormat, bounds.centerX() - mDateXOffset, mDateYOffset, mDateTextPaint);
+            Log.d(LOG_TAG, "Exiting drawTimeText!");
+        }
+
+        private void drawDivider(Canvas canvas, Rect bounds){
+            Log.d(LOG_TAG, "Entering drawDivider!");
+            // Draw divider
+            canvas.drawLine(
+                    bounds.centerX() - mDividerXOffset, mDividerYOffset,
+                    bounds.centerX() + mDividerXOffset, mDividerYOffset,
+                    mDividerTextPaint);
+            Log.d(LOG_TAG, "Exiting drawDivider!");
+        }
+
+        private void drawIconBitmap(Canvas canvas, Rect bounds){
+            Log.d(LOG_TAG, "Entering drawIconBitmap!");
+            Log.d(LOG_TAG, "Entering drawIconBitmap!");
+        }
+
+        private void drawHighTemperature(Canvas canvas, Rect bounds){
+            Log.d(LOG_TAG, "Entering drawTemperature!");
+            // Draw H:MM in both ambient and interactive modes.
+            mTime.setToNow();
+            String timeFormat = String.format(DIGITAL_TIME_FORMAT, mTime.hour, mTime.minute);
+            canvas.drawText(timeFormat, mTempHighXOffset, mTempHighYOffset, mTempHighPaint);
+            Log.d(LOG_TAG, "Exiting drawTemperature!");
+        }
+
+        private void drawLowTemperature(Canvas canvas, Rect bounds){
+            Log.d(LOG_TAG, "Entering drawTemperature!");
+            // Draw H:MM in both ambient and interactive modes.
+            mTime.setToNow();
+            String timeFormat = String.format(DIGITAL_TIME_FORMAT, mTime.hour, mTime.minute);
+            canvas.drawText(timeFormat, mTempLowXOffset, mTempLowYOffset, mTempLowPaint);
+            Log.d(LOG_TAG, "Exiting drawTemperature!");
+        }
+
     }
 }
