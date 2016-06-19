@@ -48,11 +48,28 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
     }
 
     private class Engine extends CanvasWatchFaceService.Engine {
-        boolean mRegisteredTimeZoneReceiver = false;
+
+        // Load Resources that have alternate values for round watches.
+        Resources mResources = SunshineWatchFaceService.this.getResources();
+        Time mTime;
         Paint mBackgroundPaint;
         Paint mTextPaint;
+
+        final int PAINT_TYPE_TEXT = 1;
+        final int PAINT_TYPE_BACKGROUND = 2;
+        final String DIGITAL_TIME_FORMAT = "%d:%02d";
+
+        int mTapCount;
+        float mTimeXOffset;
+        float mTimeYOffset;
+        /**
+         * Whether the display supports fewer bits for each color in ambient mode. When true, we
+         * disable anti-aliasing in ambient mode.
+         */
+        boolean mLowBitAmbient;
         boolean mAmbient;
-        Time mTime;
+        boolean mRegisteredTimeZoneReceiver = false;
+
         final BroadcastReceiver mTimeZoneReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -60,50 +77,30 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
                 mTime.setToNow();
             }
         };
-        int mTapCount;
-
-        float mXOffset;
-        float mYOffset;
-
-        /**
-         * Whether the display supports fewer bits for each color in ambient mode. When true, we
-         * disable anti-aliasing in ambient mode.
-         */
-        boolean mLowBitAmbient;
 
         @Override
         public void onCreate(SurfaceHolder holder) {
             super.onCreate(holder);
 
-            setWatchFaceStyle(new WatchFaceStyle.Builder(SunshineWatchFaceService.this)
-                    .setCardPeekMode(WatchFaceStyle.PEEK_MODE_VARIABLE)
-                    .setBackgroundVisibility(WatchFaceStyle.BACKGROUND_VISIBILITY_INTERRUPTIVE)
-                    .setShowSystemUiTime(false)
-                    .setAcceptsTapEvents(true)
-                    .build());
-            Resources resources = SunshineWatchFaceService.this.getResources();
-            mYOffset = resources.getDimension(R.dimen.digital_y_offset);
-
-            mBackgroundPaint = new Paint();
-            mBackgroundPaint.setColor(resources.getColor(R.color.primary_dark));
-
-            mTextPaint = new Paint();
-            mTextPaint = createTextPaint(resources.getColor(R.color.accent_watch_face));
+            setWatchFaceStyle(getWatchFaceStyle());
 
             mTime = new Time();
+            mTimeYOffset = getDimensionFromRes(R.dimen.digital_y_offset);
+
+            mBackgroundPaint = getPaintObject(
+                    PAINT_TYPE_BACKGROUND,
+                    R.color.primary_dark
+            );
+
+            mTextPaint = getPaintObject(
+                    PAINT_TYPE_TEXT,
+                    R.color.accent_watch_face
+            );
         }
 
         @Override
         public void onDestroy() {
             super.onDestroy();
-        }
-
-        private Paint createTextPaint(int textColor) {
-            Paint paint = new Paint();
-            paint.setColor(textColor);
-            paint.setTypeface(NORMAL_TYPEFACE);
-            paint.setAntiAlias(true);
-            return paint;
         }
 
         @Override
@@ -121,36 +118,23 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
             }
         }
 
-        private void registerReceiver() {
-            if (mRegisteredTimeZoneReceiver) {
-                return;
-            }
-            mRegisteredTimeZoneReceiver = true;
-            IntentFilter filter = new IntentFilter(Intent.ACTION_TIMEZONE_CHANGED);
-            SunshineWatchFaceService.this.registerReceiver(mTimeZoneReceiver, filter);
-        }
-
-        private void unregisterReceiver() {
-            if (!mRegisteredTimeZoneReceiver) {
-                return;
-            }
-            mRegisteredTimeZoneReceiver = false;
-            SunshineWatchFaceService.this.unregisterReceiver(mTimeZoneReceiver);
-        }
-
         @Override
         public void onApplyWindowInsets(WindowInsets insets) {
             super.onApplyWindowInsets(insets);
 
-            // Load resources that have alternate values for round watches.
-            Resources resources = SunshineWatchFaceService.this.getResources();
             boolean isRound = insets.isRound();
-            mXOffset = resources.getDimension(isRound
-                    ? R.dimen.digital_x_offset_round : R.dimen.digital_x_offset);
-            float textSize = resources.getDimension(isRound
-                    ? R.dimen.digital_text_size_round : R.dimen.digital_text_size);
 
-            mTextPaint.setTextSize(textSize);
+            mTimeXOffset = getDimensionFromRes(isRound ?
+                    R.dimen.digital_x_offset_round :
+                    R.dimen.digital_x_offset
+            );
+
+            mTextPaint.setTextSize(
+                    getDimensionFromRes(isRound ?
+                            R.dimen.digital_text_size_round :
+                            R.dimen.digital_text_size
+                    )
+            );
         }
 
         @Override
@@ -183,7 +167,6 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
          */
         @Override
         public void onTapCommand(int tapType, int x, int y, long eventTime) {
-            Resources resources = SunshineWatchFaceService.this.getResources();
             switch (tapType) {
                 case TAP_TYPE_TOUCH:
                     // The user has started touching the screen.
@@ -194,8 +177,12 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
                 case TAP_TYPE_TAP:
                     // The user has completed the tap gesture.
                     mTapCount++;
-                    mBackgroundPaint.setColor(resources.getColor(mTapCount % 2 == 0 ?
-                            R.color.primary_dark : R.color.primary));
+                    mBackgroundPaint.setColor(
+                            getColorFromRes(mTapCount % 2 == 0 ?
+                                    R.color.primary_dark :
+                                    R.color.primary
+                            )
+                    );
                     break;
             }
             invalidate();
@@ -203,19 +190,68 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
 
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
-            Resources resources = SunshineWatchFaceService.this.getResources();
             // Draw the background.
             if (isInAmbientMode()) {
-                canvas.drawColor(resources.getColor(R.color.ambient_primary_dark));
+                canvas.drawColor(getColorFromRes(R.color.ambient_primary_dark));
             } else {
                 canvas.drawRect(0, 0, bounds.width(), bounds.height(), mBackgroundPaint);
             }
 
             // Draw H:MM in both ambient and interactive modes.
             mTime.setToNow();
-            String text = String.format("%d:%02d", mTime.hour, mTime.minute);
-            canvas.drawText(text, mXOffset, mYOffset, mTextPaint);
+            String timeFormat = String.format(DIGITAL_TIME_FORMAT, mTime.hour, mTime.minute);
+            canvas.drawText(timeFormat, mTimeXOffset, mTimeYOffset, mTextPaint);
         }
 
+        private WatchFaceStyle getWatchFaceStyle(){
+            return new WatchFaceStyle
+                    .Builder(SunshineWatchFaceService.this)
+                    .setCardPeekMode(WatchFaceStyle.PEEK_MODE_VARIABLE)
+                    .setBackgroundVisibility(WatchFaceStyle.BACKGROUND_VISIBILITY_INTERRUPTIVE)
+                    .setShowSystemUiTime(false)
+                    .setAcceptsTapEvents(true)
+                    .build();
+        }
+
+        private void registerReceiver() {
+            if (mRegisteredTimeZoneReceiver) {
+                return;
+            }
+            mRegisteredTimeZoneReceiver = true;
+            IntentFilter filter = new IntentFilter(Intent.ACTION_TIMEZONE_CHANGED);
+            SunshineWatchFaceService.this.registerReceiver(mTimeZoneReceiver, filter);
+        }
+
+        private void unregisterReceiver() {
+            if (!mRegisteredTimeZoneReceiver) {
+                return;
+            }
+            mRegisteredTimeZoneReceiver = false;
+            SunshineWatchFaceService.this.unregisterReceiver(mTimeZoneReceiver);
+        }
+
+        private Paint getPaintObject(int paintType, int textColorResId) {
+            Paint paint = new Paint();
+
+            switch (paintType){
+                case PAINT_TYPE_TEXT:
+                    paint.setTypeface(NORMAL_TYPEFACE);
+                    paint.setAntiAlias(true);
+                    break;
+                case PAINT_TYPE_BACKGROUND:
+                    break;
+            }
+
+            paint.setColor(getColorFromRes(textColorResId));
+            return paint;
+        }
+
+        private float getDimensionFromRes(int dimensionResId){
+            return mResources.getDimension(dimensionResId);
+        }
+
+        private int getColorFromRes(int colorResId){
+            return mResources.getColor(colorResId);
+        }
     }
 }
