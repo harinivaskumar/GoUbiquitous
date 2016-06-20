@@ -63,6 +63,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
     public static final int SYNC_FLEXTIME = SYNC_INTERVAL/3;
     private static final long DAY_IN_MILLIS = 1000 * 60 * 60 * 24;
     private static final int WEATHER_NOTIFICATION_ID = 3004;
+    private final int WEATHER_TODAY_INDEX = 0;
 
 
     private static final String[] NOTIFY_WEATHER_PROJECTION = new String[] {
@@ -316,6 +317,11 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                 JSONObject temperatureObject = dayForecast.getJSONObject(OWM_TEMPERATURE);
                 high = temperatureObject.getDouble(OWM_MAX);
                 low = temperatureObject.getDouble(OWM_MIN);
+
+                if (i == WEATHER_TODAY_INDEX) {
+                    Utility.saveTodayWeatherData(getContext(),
+                            weatherId + "", (int) high + "", (int) low + "");
+                }
 
                 ContentValues weatherValues = new ContentValues();
 

@@ -23,6 +23,7 @@ import android.preference.PreferenceManager;
 import android.text.format.Time;
 
 import com.example.android.sunshine.app.sync.SunshineSyncAdapter;
+import com.example.android.sunshine.lib.SunshineUtility;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -539,5 +540,10 @@ public class Utility {
         SharedPreferences.Editor spe = sp.edit();
         spe.putInt(c.getString(R.string.pref_location_status_key), SunshineSyncAdapter.LOCATION_STATUS_UNKNOWN);
         spe.apply();
+    }
+
+    public static void saveTodayWeatherData(Context context, String weatherId,
+                                       String highTemperature, String lowTemperature){
+        SunshineUtility.setAllWeatherValues(context, weatherId, highTemperature, lowTemperature);
     }
 }
