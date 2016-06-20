@@ -47,59 +47,92 @@ public class SunshineUtility {
         return -1;
     }
 
-    public static void saveValuesToPrefs(Context context, String keyStr, String valueStr) {
+    private static void saveBoolValuesToPrefs(Context context, String keyStr, boolean valueBool) {
+        PreferenceManager.getDefaultSharedPreferences(context)
+                .edit()
+                .putBoolean(keyStr, valueBool)
+                .commit();
+
+        Log.d(LOG_TAG, "Boolean Value - " + valueBool + " Saved for Key - " + keyStr);
+    }
+
+    private static boolean retrieveBoolValuesFromPrefs(Context context, String keyStr) {
+        boolean valueBool = PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean(keyStr, true);
+
+        Log.d(LOG_TAG, "Boolean Value - " + valueBool + " Retrieved for Key - " + keyStr);
+        return valueBool;
+    }
+
+    private static void saveStringValuesToPrefs(Context context, String keyStr, String valueStr) {
         PreferenceManager.getDefaultSharedPreferences(context)
                 .edit()
                 .putString(keyStr, valueStr)
                 .commit();
 
-        Log.d(LOG_TAG, "Value - " + valueStr + " Saved for Key - " + keyStr);
+        Log.d(LOG_TAG, "String Value - " + valueStr + " Saved for Key - " + keyStr);
     }
 
-    public static String retrieveValuesFromPrefs(Context context, String keyStr) {
+    private static String retrieveStringValuesFromPrefs(Context context, String keyStr) {
         String valueStr = PreferenceManager.getDefaultSharedPreferences(context)
                 .getString(keyStr, "");
 
-        Log.d(LOG_TAG, "Value - " + valueStr + " Retrieved for Key - " + keyStr);
+        Log.d(LOG_TAG, "String Value - " + valueStr + " Retrieved for Key - " + keyStr);
         return valueStr;
     }
 
+    public static void setAppConnReq(Context context, boolean appConnReq) {
+        saveBoolValuesToPrefs(context, SunshineConstants.KEY_APP_CONN_REQ, appConnReq);
+    }
+
+    public static boolean getAppConnReq(Context context) {
+        return retrieveBoolValuesFromPrefs(context, SunshineConstants.KEY_APP_CONN_REQ);
+    }
+
+    public static void setWearConnReq(Context context, boolean appConnReq) {
+        saveBoolValuesToPrefs(context, SunshineConstants.KEY_WEARABLE_CONN_REQ, appConnReq);
+    }
+
+    public static boolean getWearConnReq(Context context) {
+        return retrieveBoolValuesFromPrefs(context, SunshineConstants.KEY_WEARABLE_CONN_REQ);
+    }
+
     public static void setWeatherId(Context context, String weatherId) {
-        saveValuesToPrefs(context, SunshineConstants.KEY_WEATHER_ID, weatherId);
+        saveStringValuesToPrefs(context, SunshineConstants.KEY_WEATHER_ID, weatherId);
     }
 
     public static void setHighTemp(Context context, String highTemperature) {
-        saveValuesToPrefs(context, SunshineConstants.KEY_HIGH_TEMP, highTemperature);
+        saveStringValuesToPrefs(context, SunshineConstants.KEY_HIGH_TEMP, highTemperature);
     }
 
     public static void setLowTemp(Context context, String lowTemperature) {
-        saveValuesToPrefs(context, SunshineConstants.KEY_LOW_TEMP, lowTemperature);
+        saveStringValuesToPrefs(context, SunshineConstants.KEY_LOW_TEMP, lowTemperature);
     }
 
     public static void setAllWeatherValues(Context context, String weatherId,
                                            String highTemperature, String lowTemperature) {
-        saveValuesToPrefs(context, SunshineConstants.KEY_WEATHER_ID, weatherId);
-        saveValuesToPrefs(context, SunshineConstants.KEY_HIGH_TEMP, highTemperature);
-        saveValuesToPrefs(context, SunshineConstants.KEY_LOW_TEMP, lowTemperature);
+        saveStringValuesToPrefs(context, SunshineConstants.KEY_WEATHER_ID, weatherId);
+        saveStringValuesToPrefs(context, SunshineConstants.KEY_HIGH_TEMP, highTemperature);
+        saveStringValuesToPrefs(context, SunshineConstants.KEY_LOW_TEMP, lowTemperature);
     }
 
     public static String getWeatherId(Context context) {
-        return retrieveValuesFromPrefs(context, SunshineConstants.KEY_WEATHER_ID);
+        return retrieveStringValuesFromPrefs(context, SunshineConstants.KEY_WEATHER_ID);
     }
 
     public static String getHighTemp(Context context) {
-        return retrieveValuesFromPrefs(context, SunshineConstants.KEY_HIGH_TEMP);
+        return retrieveStringValuesFromPrefs(context, SunshineConstants.KEY_HIGH_TEMP);
     }
 
     public static String getLowTemp(Context context) {
-        return retrieveValuesFromPrefs(context, SunshineConstants.KEY_LOW_TEMP);
+        return retrieveStringValuesFromPrefs(context, SunshineConstants.KEY_LOW_TEMP);
     }
 
     public static String[] getAllWeatherValues(Context context) {
         return new String[]{
-                retrieveValuesFromPrefs(context, SunshineConstants.KEY_WEATHER_ID),
-                retrieveValuesFromPrefs(context, SunshineConstants.KEY_HIGH_TEMP),
-                retrieveValuesFromPrefs(context, SunshineConstants.KEY_LOW_TEMP)
+                retrieveStringValuesFromPrefs(context, SunshineConstants.KEY_WEATHER_ID),
+                retrieveStringValuesFromPrefs(context, SunshineConstants.KEY_HIGH_TEMP),
+                retrieveStringValuesFromPrefs(context, SunshineConstants.KEY_LOW_TEMP)
         };
     }
 }
