@@ -28,18 +28,34 @@ import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.wearable.watchface.CanvasWatchFaceService;
 import android.support.wearable.watchface.WatchFaceStyle;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
+import com.example.android.sunshine.lib.SunshineConstants;
 import com.example.android.sunshine.lib.SunshineUtility;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataEvent;
+import com.google.android.gms.wearable.DataEventBuffer;
+import com.google.android.gms.wearable.DataItem;
+import com.google.android.gms.wearable.DataMap;
+import com.google.android.gms.wearable.DataMapItem;
+import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.PutDataRequest;
+import com.google.android.gms.wearable.Wearable;
 
 import java.util.Calendar;
 import java.util.Locale;
 import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Digital watch face with seconds. In ambient mode, the seconds aren't displayed. On devices with
@@ -56,7 +72,8 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
         return new Engine();
     }
 
-    private class Engine extends CanvasWatchFaceService.Engine {
+    private class Engine extends CanvasWatchFaceService.Engine implements
+            GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, DataApi.DataListener {
 
         final int TEXT_SIZE_NOT_APPLICABLE = 0;
         final int PAINT_TYPE_TEXT = 1;
@@ -109,11 +126,18 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
         boolean mLowBitAmbient;
         boolean mAmbient;
         boolean mRegisteredTimeZoneReceiver = false;
+        // Google API Client
+        private GoogleApiClient mGoogleApiClient;
 
         @Override
         public void onCreate(SurfaceHolder holder) {
             super.onCreate(holder);
             setWatchFaceStyle(getWatchFaceStyle());
+            mGoogleApiClient = new GoogleApiClient.Builder(SunshineWatchFaceService.this)
+                    .addConnectionCallbacks(this)
+                    .addOnConnectionFailedListener(this)
+                    .addApi(Wearable.API)
+                    .build();
             initPaintObjects();
             initXYOffsets();
             mCalendar = Calendar.getInstance();
@@ -130,11 +154,16 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
 
             if (visible) {
                 registerReceiver();
+                mGoogleApiClient.connect();
 
                 // Update time zone in case it changed while we weren't visible.
                 mCalendar.setTimeZone(TimeZone.getDefault());
                 mCalendar.setTimeInMillis(System.currentTimeMillis());
             } else {
+                if (mGoogleApiClient != null && mGoogleApiClient.isConnected()) {
+                    Wearable.DataApi.removeListener(mGoogleApiClient, this);
+                    mGoogleApiClient.disconnect();
+                }
                 unregisterReceiver();
             }
         }
@@ -198,26 +227,44 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
             Log.d(LOG_TAG, "Entering onDraw");
+
             // Set current time in calendar
             mCalendar.setTimeInMillis(System.currentTimeMillis());
-            if (mTempHighStr == null) {
-                mTempHighStr = String.format(mResources.getString(R.string.format_temperature), 17.0);
-            }
-            if (mTempLowStr == null) {
-                mTempLowStr = String.format(mResources.getString(R.string.format_temperature), 12.0);
-            }
-            Log.d(LOG_TAG, "High Temp - " + mTempHighStr);
-            Log.d(LOG_TAG, "Low Temp - " + mTempLowStr);
-            mTempHighTextSize = mTempHighPaint.measureText(mTempHighStr);
-            mTempLowTextSize = mTempLowPaint.measureText(mTempLowStr);
 
             drawBackground(canvas, bounds);
             drawTimeText(canvas, bounds);
             drawDateText(canvas, bounds);
             drawDivider(canvas, bounds);
-            drawIconBitmap(canvas, bounds);
-            drawHighTemperature(canvas, bounds);
-            drawLowTemperature(canvas, bounds);
+
+            String weatherStr = SunshineUtility.getWeatherId(getApplicationContext());
+            mTempHighStr = SunshineUtility.getHighTemp(getApplicationContext());
+            mTempLowStr = SunshineUtility.getLowTemp(getApplicationContext());
+
+            if (!(weatherStr == null || weatherStr.equals("")) &&
+                    !(mTempHighStr == null || mTempHighStr.equals("")) &&
+                    !(mTempLowStr == null || mTempLowStr.equals(""))) {
+
+                Log.d(LOG_TAG, "Before Formatting : WeatherId - " + weatherStr + " High Temp - " + mTempHighStr + " Low Temp - " + mTempLowStr);
+
+                mWeatherId = Integer.parseInt(weatherStr);
+
+                mTempHighStr = String.format(mResources.getString(R.string.format_temperature),
+                        Float.parseFloat(mTempHighStr));
+
+                mTempLowStr = String.format(mResources.getString(R.string.format_temperature),
+                        Float.parseFloat(mTempLowStr));
+
+                Log.d(LOG_TAG, "After Formatting : WeatherId - " + mWeatherId + " High Temp - " + mTempHighStr + " Low Temp - " + mTempLowStr);
+                mTempHighTextSize = mTempHighPaint.measureText(mTempHighStr);
+                mTempLowTextSize = mTempLowPaint.measureText(mTempLowStr);
+
+                drawIconBitmap(canvas, bounds);
+                drawHighTemperature(canvas, bounds);
+                drawLowTemperature(canvas, bounds);
+            } else {
+                requestWeatherUpdateFromApp();
+            }
+
             Log.d(LOG_TAG, "Exiting onDraw!");
         }
 
@@ -311,11 +358,11 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
             return mResources.getColor(colorResId);
         }
 
-        private Drawable getDrawableFromRes(int drawableResId){
+        private Drawable getDrawableFromRes(int drawableResId) {
             return mResources.getDrawable(drawableResId);
         }
 
-        private Bitmap getIconBitmap(){
+        private Bitmap getIconBitmap() {
             return ((BitmapDrawable) getDrawableFromRes(
                     SunshineUtility.getIconResourceForWeatherCondition(mWeatherId))
             ).getBitmap();
@@ -440,6 +487,80 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
                     mTempLowPaint
             );
             Log.d(LOG_TAG, "Exiting drawLowTemperature!");
+        }
+
+        @Override
+        public void onConnected(@Nullable Bundle bundle) {
+            Log.d(LOG_TAG, "onConnected!");
+            Wearable.DataApi.addListener(mGoogleApiClient, this);
+            SunshineUtility.setAppConnReq(getApplicationContext(), true);
+        }
+
+        @Override
+        public void onConnectionSuspended(int i) {
+            Log.d(LOG_TAG, "onConnectionSuspended!");
+        }
+
+        @Override
+        public void onDataChanged(DataEventBuffer dataEventBuffer) {
+            for (DataEvent dataEvent : dataEventBuffer) {
+                if (dataEvent.getType() == DataEvent.TYPE_CHANGED) {
+                    DataItem dataItem = dataEvent.getDataItem();
+                    if (dataItem.getUri().getPath().compareTo(SunshineConstants.WEATHER_DATA_PATH) == 0) {
+                        readWeatherDataInWear(dataItem);
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+            Log.d(LOG_TAG, "onConnectionFailed! - " + connectionResult.getErrorMessage());
+            SunshineUtility.setAppConnReq(getApplicationContext(), false);
+        }
+
+        private void requestWeatherUpdateFromApp() {
+            Log.d(LOG_TAG, "requestWeatherUpdateFromApp!");
+            new AsyncTask<Void, Void, Void>() {
+                @Override
+                protected Void doInBackground(Void... params) {
+                    ConnectionResult connectionResult = mGoogleApiClient.blockingConnect(30, TimeUnit.SECONDS);
+                    if (connectionResult.isSuccess()) {
+                        SunshineUtility.setAppConnReq(getApplicationContext(), true);
+                        writeWeatherUpdateReqDataFromWear();
+                    }
+                    return null;
+                }
+            };
+        }
+
+        private void writeWeatherUpdateReqDataFromWear() {
+            PutDataMapRequest putDataMapRequest = PutDataMapRequest.create(SunshineConstants.WEATHER_INFO_REQ_PATH);
+
+            PutDataRequest putDataRequest = putDataMapRequest.asPutDataRequest();
+            Wearable.DataApi.putDataItem(mGoogleApiClient, putDataRequest);
+
+            Log.d(LOG_TAG, "writeWeatherUpdateReqDataFromWear : Weather Data Requested Successfully!");
+        }
+
+        private void readWeatherDataInWear(DataItem dataItem) {
+            DataMap dataMap = DataMapItem.fromDataItem(dataItem).getDataMap();
+
+            SunshineUtility.setAllWeatherValues(getApplicationContext(),
+                    dataMap.getString(SunshineConstants.KEY_WEATHER_ID),
+                    dataMap.getString(SunshineConstants.KEY_HIGH_TEMP),
+                    dataMap.getString(SunshineConstants.KEY_LOW_TEMP)
+            );
+
+            Log.d(LOG_TAG,
+                    "\nWeatherId : " + SunshineUtility.getWeatherId(getApplicationContext()) +
+                            "\nHighTemp  : " + SunshineUtility.getHighTemp(getApplicationContext()) +
+                            "\nLowTemp   : " + SunshineUtility.getLowTemp(getApplicationContext())
+            );
+
+            SunshineUtility.setAppConnReq(getApplicationContext(), false);
+            Log.d(LOG_TAG, "readWeatherDataInWear : Weather Data Requested Successfully!");
+            invalidate();
         }
     }
 }
