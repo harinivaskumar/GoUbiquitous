@@ -1,9 +1,15 @@
 package com.example.android.sunshine.lib;
 
+import android.content.Context;
+import android.preference.PreferenceManager;
+import android.util.Log;
+
 /**
  * Created by Hari Nivas Kumar R P on 6/20/2016.
  */
 public class SunshineUtility {
+
+    private static final String LOG_TAG = SunshineUtility.class.getSimpleName();
 
     /**
      * Helper method to provide the icon resource id according to the weather condition id returned
@@ -41,4 +47,59 @@ public class SunshineUtility {
         return -1;
     }
 
+    public static void saveValuesToPrefs(Context context, String keyStr, String valueStr) {
+        PreferenceManager.getDefaultSharedPreferences(context)
+                .edit()
+                .putString(keyStr, valueStr)
+                .commit();
+
+        Log.d(LOG_TAG, "Value - " + valueStr + " Saved for Key - " + keyStr);
+    }
+
+    public static String retrieveValuesFromPrefs(Context context, String keyStr) {
+        String valueStr = PreferenceManager.getDefaultSharedPreferences(context)
+                .getString(keyStr, "");
+
+        Log.d(LOG_TAG, "Value - " + valueStr + " Retrieved for Key - " + keyStr);
+        return valueStr;
+    }
+
+    public static void setWeatherId(Context context, String weatherId) {
+        saveValuesToPrefs(context, SunshineConstants.KEY_WEATHER_ID, weatherId);
+    }
+
+    public static void setHighTemp(Context context, String highTemperature) {
+        saveValuesToPrefs(context, SunshineConstants.KEY_HIGH_TEMP, highTemperature);
+    }
+
+    public static void setLowTemp(Context context, String lowTemperature) {
+        saveValuesToPrefs(context, SunshineConstants.KEY_LOW_TEMP, lowTemperature);
+    }
+
+    public static void setAllWeatherValues(Context context, String weatherId,
+                                           String highTemperature, String lowTemperature) {
+        saveValuesToPrefs(context, SunshineConstants.KEY_WEATHER_ID, weatherId);
+        saveValuesToPrefs(context, SunshineConstants.KEY_HIGH_TEMP, highTemperature);
+        saveValuesToPrefs(context, SunshineConstants.KEY_LOW_TEMP, lowTemperature);
+    }
+
+    public static String getWeatherId(Context context) {
+        return retrieveValuesFromPrefs(context, SunshineConstants.KEY_WEATHER_ID);
+    }
+
+    public static String getHighTemp(Context context) {
+        return retrieveValuesFromPrefs(context, SunshineConstants.KEY_HIGH_TEMP);
+    }
+
+    public static String getLowTemp(Context context) {
+        return retrieveValuesFromPrefs(context, SunshineConstants.KEY_LOW_TEMP);
+    }
+
+    public static String[] getAllWeatherValues(Context context) {
+        return new String[]{
+                retrieveValuesFromPrefs(context, SunshineConstants.KEY_WEATHER_ID),
+                retrieveValuesFromPrefs(context, SunshineConstants.KEY_HIGH_TEMP),
+                retrieveValuesFromPrefs(context, SunshineConstants.KEY_LOW_TEMP)
+        };
+    }
 }
