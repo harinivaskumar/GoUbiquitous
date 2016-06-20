@@ -35,6 +35,8 @@ import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
 
+import com.example.android.sunshine.lib.SunshineUtility;
+
 import java.util.Calendar;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -315,7 +317,7 @@ public class SunshineWatchFaceService extends CanvasWatchFaceService {
 
         private Bitmap getIconBitmap(){
             return ((BitmapDrawable) getDrawableFromRes(
-                    Utility.getIconResourceForWeatherCondition(mWeatherId))
+                    SunshineUtility.getIconResourceForWeatherCondition(mWeatherId))
             ).getBitmap();
         }
 
